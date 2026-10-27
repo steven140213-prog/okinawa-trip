@@ -91,6 +91,7 @@ button{font-family:inherit}
 .dh .wx .tp{font-size:22px;font-weight:700;line-height:1.2}
 .dh .wx .tp small{font-size:13px;font-weight:400;color:#c3d6ea}
 .dh .wx .ds{font-size:12.5px;color:#d7e7f7;line-height:1.5}
+.dh .wx .wt{flex:1 1 150px;min-width:0;display:flex;flex-direction:column;gap:5px;padding-left:12px;border-left:1px solid rgba(255,255,255,.2);font-size:12.5px;line-height:1.45;color:#eaf3fc}
 .dh .rm{margin:0;padding:0;list-style:none}
 .dh .rm li{display:flex;gap:8px;font-size:13px;line-height:1.55;color:#eaf3fc;margin:2px 0}
 .dh .rm li i{font-size:16px;margin-top:3px;color:#ffd98a;flex:none}
@@ -250,9 +251,19 @@ function status(day,o){if(!o)return'';var n=jst();if(!n||n.ymd!=day.iso)return''
 /* ===== 天氣 ===== */
 function wc(c){if(c===0)return['晴','☀️'];if(c===1)return['大致晴','🌤️'];if(c===2)return['晴時多雲','⛅'];if(c===3)return['陰','☁️'];if(c===45||c===48)return['霧','🌫️'];if(c>=51&&c<=57)return['毛毛雨','🌦️'];if(c>=61&&c<=67)return['雨','🌧️'];if(c>=80&&c<=82)return['陣雨','🌦️'];if(c>=95)return['雷雨','⛈️'];return['—','🌡️']}
 function wxLoad(){try{var c=JSON.parse(localStorage.getItem('okWx'));if(c&&c.w){for(var k in c.w)W[k]=c.w[k];S.wxAt=c.at||0}}catch(e){}
-try{fetch('https://api.open-meteo.com/v1/forecast?latitude=26.21&longitude=127.68&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FTokyo&forecast_days=16').then(function(r){return r.json()}).then(function(j){var d=j.daily,live={},any=0;d.time.forEach(function(t,i){if(D.some(function(x){return x.iso==t})&&d.temperature_2m_max[i]!=null){var w=wc(d.weather_code[i]);live[t]={hi:Math.round(d.temperature_2m_max[i]),lo:Math.round(d.temperature_2m_min[i]),pop:d.precipitation_probability_max[i],c:w[0],e:w[1],live:1};W[t]=live[t];any=1}});if(any){S.wxAt=Date.now();try{localStorage.setItem('okWx',JSON.stringify({w:live,at:S.wxAt}))}catch(e){}if(S.tab=='trip')render()}}).catch(function(){})}catch(e){}}
+try{fetch('https://api.open-meteo.com/v1/forecast?latitude=26.21&longitude=127.68&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&hourly=precipitation_probability&timezone=Asia%2FTokyo&forecast_days=16').then(function(r){return r.json()}).then(function(j){var d=j.daily,live={},any=0,pm={};try{j.hourly.time.forEach(function(s,i){var dt=s.slice(0,10),h=+s.slice(11,13),v=j.hourly.precipitation_probability[i];if(v==null||h<6)return;var b=h<12?0:h<18?1:2;pm[dt]=pm[dt]||[0,0,0];if(v>pm[dt][b])pm[dt][b]=v})}catch(e){}d.time.forEach(function(t,i){if(D.some(function(x){return x.iso==t})&&d.temperature_2m_max[i]!=null){var w=wc(d.weather_code[i]);live[t]={hi:Math.round(d.temperature_2m_max[i]),lo:Math.round(d.temperature_2m_min[i]),pop:d.precipitation_probability_max[i],c:w[0],e:w[1],pm:pm[t]||null,live:1};W[t]=live[t];any=1}});if(any){S.wxAt=Date.now();try{localStorage.setItem('okWx',JSON.stringify({w:live,at:S.wxAt}))}catch(e){}if(S.tab=='trip')render()}}).catch(function(){})}catch(e){}}
+function wxTips(w){var t=[],nm=['早上','下午','晚上'];
+var seg=[];if(w.pm){w.pm.forEach(function(v,i){if(v>=40)seg.push([nm[i],v])})}
+if(seg.length){var mx=Math.max.apply(null,seg.map(function(x){return x[1]}));t.push('🌂 '+seg.map(function(x){return x[0]}).join('、')+'可能下雨（最高 '+mx+'%），'+(mx>=60?'務必帶雨具':'記得帶折傘'))}
+else if(w.pop>=60)t.push('🌂 降雨機率 '+w.pop+'%，務必帶雨具');
+else if(w.pop>=30)t.push('🌂 降雨機率 '+w.pop+'%，建議帶折傘');
+if(w.lo<=20||w.hi<=24)t.push('🧥 天氣偏涼，建議帶薄外套');
+else if(w.lo<=23)t.push('🧥 早晚、海邊風大，可帶薄外套備用');
+if(w.hi>=28)t.push('🕶️ 白天偏熱、紫外線強，注意防曬補水');
+if(!t.length)t.push('👍 天氣舒適，輕裝出門即可');
+return t.slice(0,3)}
 function wxBlock(k){var w=W[D[k].iso];if(!w)return'<div class="wx"><div class="em">🌡️</div><div><div class="tp" style="font-size:16px">尚無預報</div><div class="ds">離出發太遠，氣象單位還沒發布。11 月那霸氣候參考約 21–26°C。頁面連上網路時會自動更新。</div></div></div>';
-return'<div class="wx"><div class="em">'+w.e+'</div><div><div class="tp">'+w.hi+'° <small>/ '+w.lo+'°C</small></div><div class="ds">'+esc(w.c)+'・降雨機率 '+w.pop+'%'+(w.live?'':'<br>預報信賴度低，出發前會再更新')+'</div></div></div>'}
+return'<div class="wx"><div class="em">'+w.e+'</div><div><div class="tp">'+w.hi+'° <small>/ '+w.lo+'°C</small></div><div class="ds">'+esc(w.c)+'・降雨機率 '+w.pop+'%'+(w.live?'':'<br>預報信賴度低，出發前會再更新')+'</div></div><div class="wt">'+wxTips(w).map(function(x){return '<span>'+esc(x)+'</span>'}).join('')+'</div></div>'}
 function wxStamp(){if(!S.wxAt)return'天氣：10/24 查到的預報（Weathernews、tenki.jp），連網後自動更新';var d=new Date(S.wxAt);return'天氣更新於 '+(d.getMonth()+1)+'/'+d.getDate()+' '+p2(d.getHours())+':'+p2(d.getMinutes())+'（手機時間）'}
 /* ===== QR（圖片只存在這支手機的瀏覽器裡 IndexedDB） ===== */
 var QDB=null,Q={},QV=null;
@@ -366,4 +377,3 @@ cd();setInterval(cd,1000);render();wxLoad();qOpen(function(){render()});
 </script>
 </body>
 </html>
-
